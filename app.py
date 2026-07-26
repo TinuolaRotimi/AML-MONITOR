@@ -216,4 +216,4 @@ with gr.Blocks(theme="soft", title="AML Transaction Monitoring") as demo:
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
-    demo.launch(server_name="0.0.0.0", server_port=port)
+    demo.launch(server_name="0.0.0.0", server_port=port, share=False)
