@@ -74,7 +74,8 @@ def generate_and_train():
     return model, scaler, metrics
 
 print("Training AML model...")
-model, scaler, metrics = print("Model ready.")
+model, scaler, metrics = generate_and_train()
+print("Model ready.")
 
 def predict_risk(amount, hour_of_day):
     """Predict risk score for a single transaction."""
@@ -125,15 +126,6 @@ def generate_scatter_plot():
     
     plt.tight_layout()
     return fig
-
-def get_model_metrics():
-    """Return model performance metrics."""
-    return (
-        f"{metrics['precision']*100:.2f}%",
-        f"{metrics['recall']*100:.2f}%",
-        f"{metrics['f1']*100:.2f}%",
-        f"{metrics['fpr']*100:.2f}%"
-    )
 
 # Build Gradio Interface
 with gr.Blocks(theme="soft", title="AML Transaction Monitoring") as demo:
@@ -205,11 +197,11 @@ with gr.Blocks(theme="soft", title="AML Transaction Monitoring") as demo:
         
         with gr.Row():
             with gr.Column():
-                precision_output = gr.Textbox(label="Precision", value=f"{metrics['precision']*100:.2f}%")
-                recall_output = gr.Textbox(label="Recall", value=f"{metrics['recall']*100:.2f}%")
+                gr.Textbox(label="Precision", value=f"{metrics['precision']*100:.2f}%", interactive=False)
+                gr.Textbox(label="Recall", value=f"{metrics['recall']*100:.2f}%", interactive=False)
             with gr.Column():
-                f1_output = gr.Textbox(label="F1 Score", value=f"{metrics['f1']*100:.2f}%")
-                fpr_output = gr.Textbox(label="False Positive Rate", value=f"{metrics['fpr']*100:.2f}%")
+                gr.Textbox(label="F1 Score", value=f"{metrics['f1']*100:.2f}%", interactive=False)
+                gr.Textbox(label="False Positive Rate", value=f"{metrics['fpr']*100:.2f}%", interactive=False)
         
         gr.Markdown("""
         ---
@@ -221,4 +213,5 @@ with gr.Blocks(theme="soft", title="AML Transaction Monitoring") as demo:
         - **Deployment:** Flask API with real-time risk scoring endpoint
         """)
 
-demo.launch()
+if __name__ == "__main__":
+    demo.launch(server_name="0.0.0.0", server_port=10000)
