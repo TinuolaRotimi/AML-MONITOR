@@ -6,6 +6,7 @@ from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import precision_score, recall_score, f1_score
+import os
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -214,4 +215,5 @@ with gr.Blocks(theme="soft", title="AML Transaction Monitoring") as demo:
         """)
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=10000)
+    port = int(os.environ.get("PORT", 10000))
+    demo.launch(server_name="0.0.0.0", server_port=port)
