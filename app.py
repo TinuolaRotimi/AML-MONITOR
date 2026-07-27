@@ -1,11 +1,16 @@
 from flask import Flask, request, jsonify, render_template_string
 import numpy as np
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import precision_score, recall_score, f1_score
 import os
+import base64
+from io import BytesIO
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -69,11 +74,44 @@ def generate_and_train():
         'fpr': round(fpr * 100, 2)
     }
     
-    return model, scaler, metrics
+    return model, scaler, metrics, X_test, test_preds
+
+def create_scatter_plot(X_test, test_preds):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    normal_mask = test_preds == 0
+    anomaly_mask = test_preds == 1
+    
+    ax.scatter(X_test[normal_mask, 0], X_test[normal_mask, 1],
+               c='blue', s=8, alpha=0.30, label='Normal Transactions')
+    ax.scatter(X_test[anomaly_mask, 0], X_test[anomaly_mask, 1],
+               c='red', s=28, alpha=0.85, edgecolors='darkred', linewidths=0.4,
+               label='Flagged Anomalies')
+    
+    ax.set_title("AML Transaction Monitoring - Anomaly Detection", fontsize=14, fontweight='bold')
+    ax.set_xlabel("Transaction Amount")
+    ax.set_ylabel("Hour of Day")
+    ax.set_xscale('log')
+    ax.set_yticks(range(0, 24, 2))
+    ax.legend(loc='upper left', framealpha=0.9)
+    ax.grid(True, alpha=0.25, linestyle='--')
+    
+    plt.tight_layout()
+    
+    buf = BytesIO()
+    fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+    buf.seek(0)
+    img_base64 = base64.b64encode(buf.read()).decode('utf-8')
+    plt.close(fig)
+    buf.close()
+    
+    return img_base64
 
 print("Training AML model...")
-model, scaler, metrics = generate_and_train()
-print("Model ready.")
+model, scaler, metrics, X_test, test_preds = generate_and_train()
+print("Model ready. Generating visualization...")
+scatter_img = create_scatter_plot(X_test, test_preds)
+print("Visualization ready.")
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -82,25 +120,37 @@ HTML_TEMPLATE = """
     <title>AML Transaction Monitoring</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; background: #0a0a0f; color: #e8e8f0; }
-        h1 { color: #e63946; }
-        label { display: block; margin-top: 15px; font-weight: bold; }
-        input, select { width: 100%; padding: 10px; margin-top: 5px; border-radius: 6px; border: 1px solid #333; background: #1a1a2e; color: #fff; }
-        button { margin-top: 20px; padding: 12px 30px; background: #e63946; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; }
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 800px; margin: 30px auto; padding: 20px; background: #0a0a0f; color: #e8e8f0; }
+        h1 { color: #e63946; margin-bottom: 5px; }
+        .subtitle { color: #9898b0; margin-bottom: 30px; font-size: 14px; }
+        label { display: block; margin-top: 15px; font-weight: 600; color: #c0c0d0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
+        input { width: 100%; padding: 12px; margin-top: 5px; border-radius: 8px; border: 1px solid #2a2a3e; background: #12121a; color: #fff; font-size: 16px; }
+        button { margin-top: 20px; padding: 14px 36px; background: #e63946; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 600; letter-spacing: 0.5px; }
         button:hover { background: #c1121f; }
-        .result { margin-top: 20px; padding: 20px; border-radius: 8px; display: none; }
-        .high { background: rgba(230,57,70,0.2); border: 1px solid #e63946; }
-        .medium { background: rgba(255,193,7,0.2); border: 1px solid #ffc107; }
-        .low { background: rgba(46,213,115,0.2); border: 1px solid #2ed573; }
-        .metric { display: inline-block; margin: 10px; padding: 10px; background: #1a1a2e; border-radius: 6px; }
+        .result { margin-top: 20px; padding: 20px; border-radius: 10px; display: none; }
+        .high { background: rgba(230,57,70,0.15); border: 1px solid #e63946; }
+        .medium { background: rgba(255,193,7,0.12); border: 1px solid #ffc107; }
+        .low { background: rgba(46,213,115,0.12); border: 1px solid #2ed573; }
+        .result p { margin: 8px 0; }
+        .result strong { font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .metrics { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+        .metric { flex: 1; min-width: 120px; padding: 16px; background: #12121a; border: 1px solid #2a2a3e; border-radius: 10px; text-align: center; }
+        .metric .value { font-size: 28px; font-weight: 700; color: #e63946; }
+        .metric .label { font-size: 11px; color: #9898b0; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+        .viz-section { margin-top: 40px; padding-top: 30px; border-top: 1px solid #2a2a3e; }
+        .viz-section h2 { color: #e8e8f0; margin-bottom: 15px; }
+        .viz-section p { color: #9898b0; font-size: 14px; margin-bottom: 20px; }
+        .viz-section img { width: 100%; border-radius: 10px; border: 1px solid #2a2a3e; }
+        .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #2a2a3e; color: #606078; font-size: 12px; text-align: center; }
     </style>
 </head>
 <body>
     <h1>AML Transaction Monitoring</h1>
-    <p>Real-time risk scoring for fintech and crypto clients. 89% precision with 0.1% false positive rate.</p>
+    <p class="subtitle">Real-time risk scoring for fintech and crypto clients. Isolation Forest model tuned to 89% precision with 0.1% false positive rate.</p>
     
     <label>Transaction Amount ($)</label>
-    <input type="number" id="amount" value="5000" min="5" max="500000">
+    <input type="number" id="amount" value="5000" min="5" max="500000" step="0.01">
     
     <label>Hour of Day (0-23)</label>
     <input type="number" id="hour" value="12" min="0" max="23">
@@ -113,12 +163,34 @@ HTML_TEMPLATE = """
         <p><strong>Action:</strong> <span id="action"></span></p>
     </div>
     
-    <hr style="margin-top: 30px; border-color: #333;">
-    <h3>Model Performance</h3>
-    <div class="metric">Precision: {{ precision }}%</div>
-    <div class="metric">Recall: {{ recall }}%</div>
-    <div class="metric">F1 Score: {{ f1 }}%</div>
-    <div class="metric">False Positive Rate: {{ fpr }}%</div>
+    <div class="metrics">
+        <div class="metric">
+            <div class="value">{{ precision }}%</div>
+            <div class="label">Precision</div>
+        </div>
+        <div class="metric">
+            <div class="value">{{ recall }}%</div>
+            <div class="label">Recall</div>
+        </div>
+        <div class="metric">
+            <div class="value">{{ f1 }}%</div>
+            <div class="label">F1 Score</div>
+        </div>
+        <div class="metric">
+            <div class="value">{{ fpr }}%</div>
+            <div class="label">False Positive Rate</div>
+        </div>
+    </div>
+    
+    <div class="viz-section">
+        <h2>Anomaly Detection Visualization</h2>
+        <p>Blue points represent normal transactions. Red points are flagged anomalies. Notice how flagged transactions cluster at high amounts during unusual hours (midnight to 5am).</p>
+        <img src="data:image/png;base64,{{ scatter_img }}" alt="Anomaly Detection Scatter Plot">
+    </div>
+    
+    <div class="footer">
+        <p>AML Transaction Monitoring System | Python, Scikit-learn, Flask | Deployed on Render</p>
+    </div>
     
     <script>
         async function predict() {
@@ -135,7 +207,9 @@ HTML_TEMPLATE = """
             document.getElementById('action').textContent = data.action;
             const resultDiv = document.getElementById('result');
             resultDiv.style.display = 'block';
-            resultDiv.className = 'result ' + data.risk_level.toLowerCase().replace(' ', '-');
+            if (data.risk_level === 'HIGH RISK') resultDiv.className = 'result high';
+            else if (data.risk_level === 'MEDIUM RISK') resultDiv.className = 'result medium';
+            else resultDiv.className = 'result low';
         }
     </script>
 </body>
@@ -144,7 +218,7 @@ HTML_TEMPLATE = """
 
 @app.route('/')
 def home():
-    return render_template_string(HTML_TEMPLATE, **metrics)
+    return render_template_string(HTML_TEMPLATE, scatter_img=scatter_img, **metrics)
 
 @app.route('/predict', methods=['POST'])
 def predict():
