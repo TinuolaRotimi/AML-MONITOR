@@ -1,7 +1,6 @@
-import gradio as gr
+from flask import Flask, request, jsonify, render_template_string
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
@@ -10,8 +9,9 @@ import os
 import warnings
 warnings.filterwarnings('ignore')
 
+app = Flask(__name__)
+
 def generate_and_train():
-    """Generate synthetic data and train the Isolation Forest model."""
     np.random.seed(42)
     n_samples = 50000
     fraud_rate = 0.008
@@ -63,13 +63,10 @@ def generate_and_train():
     fpr = fp / (fp + tn) if (fp + tn) > 0 else 0
     
     metrics = {
-        'precision': precision,
-        'recall': recall,
-        'f1': f1,
-        'fpr': fpr,
-        'X_test': X_test,
-        'y_test': y_test,
-        'test_preds': test_preds
+        'precision': round(precision * 100, 2),
+        'recall': round(recall * 100, 2),
+        'f1': round(f1 * 100, 2),
+        'fpr': round(fpr * 100, 2)
     }
     
     return model, scaler, metrics
@@ -78,8 +75,83 @@ print("Training AML model...")
 model, scaler, metrics = generate_and_train()
 print("Model ready.")
 
-def predict_risk(amount, hour_of_day):
-    """Predict risk score for a single transaction."""
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AML Transaction Monitoring</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; background: #0a0a0f; color: #e8e8f0; }
+        h1 { color: #e63946; }
+        label { display: block; margin-top: 15px; font-weight: bold; }
+        input, select { width: 100%; padding: 10px; margin-top: 5px; border-radius: 6px; border: 1px solid #333; background: #1a1a2e; color: #fff; }
+        button { margin-top: 20px; padding: 12px 30px; background: #e63946; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #c1121f; }
+        .result { margin-top: 20px; padding: 20px; border-radius: 8px; display: none; }
+        .high { background: rgba(230,57,70,0.2); border: 1px solid #e63946; }
+        .medium { background: rgba(255,193,7,0.2); border: 1px solid #ffc107; }
+        .low { background: rgba(46,213,115,0.2); border: 1px solid #2ed573; }
+        .metric { display: inline-block; margin: 10px; padding: 10px; background: #1a1a2e; border-radius: 6px; }
+    </style>
+</head>
+<body>
+    <h1>AML Transaction Monitoring</h1>
+    <p>Real-time risk scoring for fintech and crypto clients. 89% precision with 0.1% false positive rate.</p>
+    
+    <label>Transaction Amount ($)</label>
+    <input type="number" id="amount" value="5000" min="5" max="500000">
+    
+    <label>Hour of Day (0-23)</label>
+    <input type="number" id="hour" value="12" min="0" max="23">
+    
+    <button onclick="predict()">Calculate Risk Score</button>
+    
+    <div id="result" class="result">
+        <p><strong>Risk Score:</strong> <span id="score"></span>%</p>
+        <p><strong>Risk Level:</strong> <span id="level"></span></p>
+        <p><strong>Action:</strong> <span id="action"></span></p>
+    </div>
+    
+    <hr style="margin-top: 30px; border-color: #333;">
+    <h3>Model Performance</h3>
+    <div class="metric">Precision: {{ precision }}%</div>
+    <div class="metric">Recall: {{ recall }}%</div>
+    <div class="metric">F1 Score: {{ f1 }}%</div>
+    <div class="metric">False Positive Rate: {{ fpr }}%</div>
+    
+    <script>
+        async function predict() {
+            const amount = document.getElementById('amount').value;
+            const hour = document.getElementById('hour').value;
+            const response = await fetch('/predict', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({amount: parseFloat(amount), hour_of_day: parseInt(hour)})
+            });
+            const data = await response.json();
+            document.getElementById('score').textContent = data.risk_score;
+            document.getElementById('level').textContent = data.risk_level;
+            document.getElementById('action').textContent = data.action;
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result ' + data.risk_level.toLowerCase().replace(' ', '-');
+        }
+    </script>
+</body>
+</html>
+"""
+
+@app.route('/')
+def home():
+    return render_template_string(HTML_TEMPLATE, **metrics)
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    data = request.get_json()
+    amount = float(data.get('amount', 5000))
+    hour_of_day = int(data.get('hour_of_day', 12))
+    
     features = np.array([[amount, hour_of_day, 10, 1000]])
     features_scaled = scaler.transform(features)
     
@@ -99,120 +171,12 @@ def predict_risk(amount, hour_of_day):
         risk_level = "LOW RISK"
         action = "Process normally"
     
-    return risk_percent, risk_level, action
+    return jsonify({
+        'risk_score': risk_percent,
+        'risk_level': risk_level,
+        'action': action
+    })
 
-def generate_scatter_plot():
-    """Generate the anomaly detection scatter plot."""
-    X_test = metrics['X_test']
-    test_preds = metrics['test_preds']
-    
-    fig, ax = plt.subplots(figsize=(10, 6))
-    
-    normal_mask = test_preds == 0
-    anomaly_mask = test_preds == 1
-    
-    ax.scatter(X_test[normal_mask, 0], X_test[normal_mask, 1],
-               c='blue', s=8, alpha=0.30, label='Normal Transactions')
-    ax.scatter(X_test[anomaly_mask, 0], X_test[anomaly_mask, 1],
-               c='red', s=28, alpha=0.85, edgecolors='darkred', linewidths=0.4,
-               label='Flagged Anomalies')
-    
-    ax.set_title("AML Transaction Monitoring - Anomaly Detection", fontsize=14, fontweight='bold')
-    ax.set_xlabel("Transaction Amount")
-    ax.set_ylabel("Hour of Day")
-    ax.set_xscale('log')
-    ax.set_yticks(range(0, 24, 2))
-    ax.legend(loc='upper left', framealpha=0.9)
-    ax.grid(True, alpha=0.25, linestyle='--')
-    
-    plt.tight_layout()
-    return fig
-
-# Build Gradio Interface
-with gr.Blocks(theme="soft", title="AML Transaction Monitoring") as demo:
-    gr.Markdown("""
-    # AML Transaction Monitoring - Anomaly Detection
-    ### Real-time risk scoring for fintech and crypto clients
-    
-    **Unsupervised machine learning pipeline** using Isolation Forest and Autoencoder to detect suspicious transaction patterns 
-    in simulated banking and blockchain data. Achieves **89% precision** with a **0.1% false positive rate**.
-    """)
-    
-    with gr.Tab("Risk Calculator"):
-        gr.Markdown("Enter a transaction to receive an instant risk assessment.")
-        
-        with gr.Row():
-            with gr.Column():
-                amount_input = gr.Number(
-                    label="Transaction Amount ($)",
-                    value=5000,
-                    minimum=5,
-                    maximum=500000
-                )
-                hour_input = gr.Slider(
-                    label="Hour of Day (0-23)",
-                    minimum=0,
-                    maximum=23,
-                    value=12,
-                    step=1
-                )
-                submit_btn = gr.Button("Calculate Risk Score", variant="primary")
-            
-            with gr.Column():
-                risk_output = gr.Number(label="Risk Score (%)")
-                level_output = gr.Textbox(label="Risk Level")
-                action_output = gr.Textbox(label="Recommended Action")
-        
-        submit_btn.click(
-            fn=predict_risk,
-            inputs=[amount_input, hour_input],
-            outputs=[risk_output, level_output, action_output]
-        )
-        
-        gr.Examples(
-            examples=[
-                [185000, 3],
-                [84.50, 13],
-                [50000, 2],
-                [250, 10],
-                [12000, 14]
-            ],
-            inputs=[amount_input, hour_input],
-            label="Try these examples"
-        )
-    
-    with gr.Tab("Anomaly Visualization"):
-        gr.Markdown("""
-        ### Anomaly Detection Scatter Plot
-        
-        Blue points represent normal transactions. Red points are flagged anomalies.
-        Notice how flagged transactions cluster at high amounts during unusual hours (midnight-5am).
-        """)
-        
-        plot_output = gr.Plot(label="Amount vs Hour of Day")
-        plot_btn = gr.Button("Generate Visualization", variant="secondary")
-        plot_btn.click(fn=generate_scatter_plot, outputs=plot_output)
-    
-    with gr.Tab("Model Performance"):
-        gr.Markdown("### Model Evaluation Metrics (Held-Out Test Set)")
-        
-        with gr.Row():
-            with gr.Column():
-                gr.Textbox(label="Precision", value=f"{metrics['precision']*100:.2f}%", interactive=False)
-                gr.Textbox(label="Recall", value=f"{metrics['recall']*100:.2f}%", interactive=False)
-            with gr.Column():
-                gr.Textbox(label="F1 Score", value=f"{metrics['f1']*100:.2f}%", interactive=False)
-                gr.Textbox(label="False Positive Rate", value=f"{metrics['fpr']*100:.2f}%", interactive=False)
-        
-        gr.Markdown("""
-        ---
-        **Model Details:**
-        - **Algorithm:** Isolation Forest with 200 estimators
-        - **Contamination:** 0.009 (tuned for optimal precision)
-        - **Features:** Amount, Hour of Day, Sender Frequency, Amount Deviation
-        - **Training Data:** 50,000 synthetic transactions (0.8% fraud rate)
-        - **Deployment:** Flask API with real-time risk scoring endpoint
-        """)
-
-demo.queue()
-demo.launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 10000)))
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port)
