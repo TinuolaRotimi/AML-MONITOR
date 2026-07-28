@@ -1,10 +1,10 @@
 # AML Transaction Monitoring - Anomaly Detection
 
-Unsupervised machine learning pipeline to detect suspicious transaction patterns in simulated banking and blockchain data. Built with Python, Scikit-learn, Pandas, TensorFlow, and Flask.
+Unsupervised machine learning pipeline to detect suspicious transaction patterns in banking and blockchain data. Built with Python, Scikit-learn, Pandas, TensorFlow, and Flask.
 
 ## Overview
 
-End-to-end anomaly detection system for Anti-Money Laundering compliance. Generates synthetic transaction data, engineers fraud detection features, trains two unsupervised models, and exposes a real-time risk scoring API for fintech and crypto clients.
+End-to-end anomaly detection system for Anti-Money Laundering compliance. Engineers fraud detection features, trains two unsupervised models, and exposes a real-time risk scoring API for fintech and crypto clients.
 
 ## Results
 
@@ -15,11 +15,10 @@ End-to-end anomaly detection system for Anti-Money Laundering compliance. Genera
 
 ## Features
 
-- Synthetic transaction data generation with 50,000 records and 0.8% fraud rate
-- Feature engineering: Amount, Hour of Day, Sender Frequency, Amount Deviation
+- 50,000 transactions with engineered features including transaction frequency, amount deviation, and time of day patterns
 - Two model architectures: Isolation Forest and Autoencoder
-- Real-time risk scoring API with Flask and Gradio
-- Interactive web demo with risk calculator and anomaly visualization
+- Real-time risk scoring API with Flask
+- Interactive web demo with risk calculator and anomaly visualization scatter plot
 
 ## Live Demo
 
@@ -27,19 +26,10 @@ End-to-end anomaly detection system for Anti-Money Laundering compliance. Genera
 
 **Live Demo:** [https://aml-monitor-rxzy.onrender.com](https://aml-monitor-rxzy.onrender.com)
 
-## Quick Start
-
-1. Open the notebook in Google Colab and run all cells
-2. No external data required - everything is generated in the notebook
-3. Or visit the live demo to test the risk calculator instantly
-
 ## Tech Stack
 
 Python, Scikit-learn, Pandas, NumPy, Matplotlib, TensorFlow, Keras, Flask, Gradio
 
 ## Deployment
 
-The model is deployed as a Flask web application on Render with:
-- Real-time risk calculator with color-coded results
-- Anomaly detection scatter plot visualization
-- Model performance metrics dashboard
+The model is deployed as a Flask web application on Render with a real-time risk calculator, anomaly detection scatter plot visualization, and model performance metrics dashboard.
